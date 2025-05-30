@@ -36,19 +36,12 @@ def getTeamsWindow():
             className = win32gui.GetClassName(hwnd)
             
             if (windowText.lower().endswith('microsoft teams')):
-                print(windowText + ', ' + className)
                 windows.append((hwnd, windowText))
         return True
     
     win32gui.EnumWindows(enumWindowsCallback, windows)
-
-    print(windows)
-
-    if len(windows) > 1:
-        print('multiple teams windows found')
-        return None
     
-    if len(windows) == 1:
+    if len(windows) > 0:
         return windows[0][0]
     
     return None
