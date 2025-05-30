@@ -11,6 +11,7 @@ pip install -r requirements.txt
 ```
 
 # Usage
+```
 usage: bsc.py [-h] [--check CHECK] [--move MOVE] [--start START] [--end END]
 
 Prevent screensaver by moving mouse during periods of inactivity
@@ -30,3 +31,4 @@ Examples:
   python bsc.py                           # Default: 8am-4pm, check every 30s, move after 5min
   python bsc.py --start 09:00 --end 17:00  # Active 9am-5pm
   python bsc.py --check 60 --move 600      # Check every minute, move mouse after 10min
+```
