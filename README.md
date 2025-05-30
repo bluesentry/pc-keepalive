@@ -1,34 +1,41 @@
-# Purpose
-This application will periodically jiggle your mouse to prevent inactivity, and ensures that you always show as online on Microsoft Teams.
+# BSC Mouse Jiggler
 
-Be aware that while this program is running, your PC will not auto-lock or activate the screensaver.
+## Purpose
+This application periodically jiggles your mouse to prevent system inactivity and keeps your status as "Online" in Microsoft Teams.
 
-# Installation
-Ensure pythong 3.0+ is installed and run:
+While this program is running, your PC will not auto-lock or trigger the screensaver.
 
-```
-pip install -r requirements.txt
-```
+---
 
-# Usage
-```
-usage: bsc.py [-h] [--check CHECK] [--move MOVE] [--start START] [--end END]
+## Installation
+Ensure Python 3.0+ is installed, then run:
 
-Prevent screensaver by moving mouse during periods of inactivity
+    pip install -r requirements.txt
 
-options:
-  -h, --help            show this help message and exit
-  --check, --check-interval CHECK
-                        How often to check for inactivity in seconds (default: 30)
-  --move, --move-interval MOVE
-                        How long to wait before moving mouse in seconds (default: 60 = 1 minutes)
-  --start, --start-time START
-                        Start time for active period in HH:MM format (default: 08:00)
-  --end, --end-time END
-                        End time for active period in HH:MM format (default: 16:00)
+---
 
-Examples:
-  python bsc.py                           # Default: 8am-4pm, check every 30s, move after 5min
-  python bsc.py --start 09:00 --end 17:00  # Active 9am-5pm
-  python bsc.py --check 60 --move 600      # Check every minute, move mouse after 10min
-```
+## Usage
+
+    usage: bsc.py [-h] [--check CHECK] [--move MOVE] [--start START] [--end END]
+
+    Prevent screensaver by moving the mouse during periods of inactivity.
+
+    Options:
+      -h, --help                  Show this help message and exit
+      --check CHECK              How often to check for inactivity (seconds) [default: 30]
+      --move MOVE                How long to wait before moving mouse (seconds) [default: 60]
+      --start START              Start time for active period in HH:MM [default: 08:00]
+      --end END                  End time for active period in HH:MM [default: 16:00]
+
+---
+
+## Examples
+
+    python bsc.py
+        # Default settings: 8 AM - 4 PM, check every 30 seconds, move mouse after 1 minute
+
+    python bsc.py --start 09:00 --end 17:00
+        # Active period set from 9 AM to 5 PM
+
+    python bsc.py --check 60 --move 600
+        # Check every 1 minute, move mouse after 10 minutes of inactivity
