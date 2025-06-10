@@ -2,11 +2,21 @@ import pyautogui
 import time
 import sys
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import ctypes
 import win32gui
 import win32con
 import win32process
+
+def getJitter(jitter = 15):
+        # use a hash of the current day to recalculate the jitter every day in a deterministic way
+        # this does not need to be secure or perfectly random.
+        h = hash(date.today().strftime("%Y-%m-%d"))
+
+        if h < 0:
+            return h % -jitter
+        else:
+            return h % jitter
 
 def disableScreenLock():
     ES_CONTINUOUS = 0x80000000
@@ -112,25 +122,46 @@ def bringTeamsToFront():
 
 
 class MouseMover:
-    def __init__(self, checkInterval=30, moveInterval=300, startTime="08:00", endTime="16:00"):
+    def __init__(self, checkInterval=30, moveInterval=300, startTime="08:00", endTime="16:00", jitter=15):
         self.checkInterval = checkInterval
         self.moveInterval = moveInterval
         self.startTime = startTime
         self.endTime = endTime
+        self.jitter = jitter
         self.lastPosition = pyautogui.position()
         self.lastActivityTime = datetime.now()
 
         self.startHour, self.start_min = map(int, self.startTime.split(':'))
         self.endHour, self.end_min = map(int, self.endTime.split(':'))
+        self.lastJitter = None
+        self.active = False
         
         # Prevent pyautogui from raising exception when mouse is moved to corner
         pyautogui.FAILSAFE = True
+
+    def logJitter(self):
+        currentJitter = getJitter(self.jitter)
+        if self.lastJitter is None or currentJitter != self.lastJitter:
+            self.lastJitter = currentJitter
+
+            if currentJitter == -1 or currentJitter == 1:
+                minutes = 'minute'
+            else:
+                minutes = 'minutes'
+
+            print('Current jitter set to %d %s, active between %s and %s' % (currentJitter, minutes, self.getStartTime(), self.getEndTime()))
+
+    def getStartTime(self):
+        return (datetime.now().replace(hour=self.startHour, minute=self.start_min, second=0, microsecond=0) + timedelta(minutes = getJitter(self.jitter))).time()
+    
+    def getEndTime(self):
+        return (datetime.now().replace(hour=self.endHour, minute=self.end_min, second=0, microsecond=0) + timedelta(minutes = getJitter(self.jitter))).time()
         
-    def is_active_time(self):
+    def isActiveTime(self):
         now = datetime.now().time()
         
-        startTime = datetime.now().replace(hour=self.startHour, minute=self.start_min, second=0, microsecond=0).time()
-        endTime = datetime.now().replace(hour=self.endHour, minute=self.end_min, second=0, microsecond=0).time()
+        startTime = self.getStartTime()
+        endTime = self.getEndTime()
         
         # Handle case where end time is next day (e.g., 22:00 to 06:00)
         if startTime <= endTime:
@@ -138,7 +169,7 @@ class MouseMover:
         else:
             return now >= startTime or now <= endTime
     
-    def detect_activity(self):
+    def detectActivity(self):
         current_position = pyautogui.position()
         if current_position != self.lastPosition:
             self.lastPosition = current_position
@@ -161,8 +192,9 @@ class MouseMover:
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Mouse moved")
     
     def start(self):
-        print(f"Mouse Mover started - active between {self.startTime} and {self.endTime}")
+        print(f"Mouse Mover started - active between {self.startTime} and {self.endTime} with {self.jitter} minutes of random jitter")
         print(f"Checking every {self.checkInterval}s, moving after {self.moveInterval}s of inactivity")
+        self.logJitter()
         print("Press Ctrl+C to stop")
 
         last_check_time = 0
@@ -177,14 +209,25 @@ class MouseMover:
                 last_check_time = time.time()
 
                 # skip if outside of the active time window
-                if not self.is_active_time():
+                if not self.isActiveTime():
                     current_time = datetime.now().strftime('%H:%M:%S')
-                    print(f"[{current_time}] Outside active hours ({self.startTime}-{self.endTime}), mouse mover paused")
+                    if self.active:
+                        self.active = False
+                        startTime = self.getStartTime()
+                        endTime = self.getEndTime()
+                        print(f"[{current_time}] Outside active hours ({startTime}-{endTime}), mouse mover paused")
+
                     time.sleep(self.checkInterval)
                     continue
+                elif not self.active:
+                    current_time = datetime.now().strftime('%H:%M:%S')
+                    self.active = True
+                    startTime = self.getStartTime()
+                    endTime = self.getEndTime()
+                    print(f"[{current_time}] Activating ({startTime}-{endTime})")
                 
                 # Check for user activity
-                activity_detected = self.detect_activity()
+                activity_detected = self.detectActivity()
                 
                 if activity_detected:
                     print(f"[{datetime.now().strftime('%H:%M:%S')}] User activity detected")
@@ -199,6 +242,7 @@ class MouseMover:
                     self.lastActivityTime = datetime.now()  # Reset timer
                 
                 time.sleep(self.checkInterval)
+                self.logJitter() # log jitter when it changes at midnight
                 
             except KeyboardInterrupt:
                 break
@@ -213,9 +257,10 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python bsc.py                           # Default: 8am-4pm, check every 30s, move after 5min
-  python bsc.py --start 09:00 --end 17:00  # Active 9am-5pm
-  python bsc.py --check 60 --move 600      # Check every minute, move mouse after 10min
+  python bsc.py --jitter 0                              # Default: 8am-4pm, check every 30s, move after 5min, no jitter
+  python bsc.py --start 09:00 --end 17:00 --jitter 0    # Active 9am-5pm, no jitter
+  python bsc.py --start 09:00 --end 17:00 --jitter 15   # Active from randomly between 8:45am - 9:15am and 4:45pm and 5:15 pm (15 minutes of jitter)
+  python bsc.py --check 60 --move 600                   # Check every minute, move mouse after 10min
         """
     )
     
@@ -223,6 +268,7 @@ Examples:
     parser.add_argument('--move', '--move-interval', type=int, default=60, help='How long to wait before moving mouse in seconds (default: 60 = 1 minutes)')
     parser.add_argument('--start', '--start-time', type=str, default="08:00", help='Start time for active period in HH:MM format (default: 08:00)')
     parser.add_argument('--end', '--end-time', type=str, default="16:00", help='End time for active period in HH:MM format (default: 16:00)')
+    parser.add_argument('--jitter', '--jitter', type=int, default=15, help='Amount of random jitter (in minutes) to add to or remove from the start and end times')
     
     return parser.parse_args()
 
@@ -257,7 +303,7 @@ def main():
         disableScreenLock()
     
         # Create and start mouse mover with command line arguments
-        mover = MouseMover(checkInterval=args.check, moveInterval=args.move, startTime=args.start, endTime=args.end)
+        mover = MouseMover(checkInterval=args.check, moveInterval=args.move, startTime=args.start, endTime=args.end, jitter=args.jitter)
         mover.start()
             
     except KeyboardInterrupt:
