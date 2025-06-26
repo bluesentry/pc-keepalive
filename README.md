@@ -4,10 +4,11 @@ This application will periodically jiggle your mouse to prevent inactivity, and 
 Be aware that while this program is running, your PC will not auto-lock or activate the screensaver.
 
 # Installation
-Ensure pythong 3.0+ is installed and run:
+run:
 
 ```
-pip install -r requirements.txt
+winget install python
+pip install -r requirements.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org
 ```
 
 # Usage
