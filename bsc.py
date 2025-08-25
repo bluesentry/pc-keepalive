@@ -7,6 +7,7 @@ import ctypes
 import win32gui
 import win32con
 import win32process
+import traceback
 
 def getJitter(jitter = 15):
         # use a hash of the current day to recalculate the jitter every day in a deterministic way
@@ -56,6 +57,50 @@ def getTeamsWindow():
     
     return None
 
+
+def alternateSetForegroundWindow(teamsHwnd):
+    # Method 2: Alternative approach if SetForegroundWindow fails
+    print("Direct method failed, trying alternative approach...")
+
+    try:
+        # Get current foreground window's thread
+        currentHwnd = win32gui.GetForegroundWindow()
+        current_thread_id = win32process.GetWindowThreadProcessId(currentHwnd)[0]
+        target_thread_id = win32process.GetWindowThreadProcessId(teamsHwnd)[0]
+
+        # Attach input processing mechanism of the two threads
+        if (
+            current_thread_id != target_thread_id
+            and current_thread_id != 0
+            and target_thread_id != 0
+        ):
+            win32process.AttachThreadInput(current_thread_id, target_thread_id, True)
+
+        # Show and set foreground
+        win32gui.ShowWindow(teamsHwnd, win32con.SW_SHOW)
+        win32gui.SetForegroundWindow(teamsHwnd)
+
+        # Detach the input processing mechanism
+        if current_thread_id != target_thread_id:
+            win32process.AttachThreadInput(current_thread_id, target_thread_id, False)
+        print("Alternative method completed")
+    except Exception as e:
+        print(f"Alternative method failed: {e}")
+        traceback.print_exc()
+        raise e
+
+
+def setForegroundWindow(teamsHwnd):
+    result = False
+    # Method 1: Try SetForegroundWindow directly. Fails sometimes due to windows security preventing excessive botting (teams task bar icon flashes red when this happens)
+    try:
+        result = win32gui.SetForegroundWindow(teamsHwnd)
+    except Exception as e:
+        print(f"SetForegroundWindow failed: {e}")
+        result = False
+    if not result:
+        alternateSetForegroundWindow(teamsHwnd)
+
 def bringTeamsToFront():
     try:
         teamsHwnd = getTeamsWindow()
@@ -74,7 +119,7 @@ def bringTeamsToFront():
             print("Teams Window is minimized, restoring...")
             win32gui.ShowWindow(teamsHwnd, win32con.SW_RESTORE)
             time.sleep(0.1)  # Small delay to let window restore
-        
+
         # Maximize window if not already maximized
         if not is_maximized:
             print("Maximizing Teams window...")
@@ -84,38 +129,14 @@ def bringTeamsToFront():
         # Bring to front and give focus if not already in foreground
         if not is_foreground:
             print("Bringing Teams window to front and giving focus...")
-            
-            # Method 1: Try SetForegroundWindow directly. Fails sometimes due to windows security preventing excessive botting (teams task bar icon flashes red when this happens)
-            result = win32gui.SetForegroundWindow(teamsHwnd)
-            
-            if not result:
-                # Method 2: Alternative approach if SetForegroundWindow fails
-                print("Direct method failed, trying alternative approach...")
-                
-                # Get current foreground window's thread
-                currentHwnd = win32gui.GetForegroundWindow()
-                current_thread_id = win32process.GetWindowThreadProcessId(currentHwnd)[0]
-                target_thread_id = win32process.GetWindowThreadProcessId(teamsHwnd)[0]
-                
-                # Attach input processing mechanism of the two threads
-                if current_thread_id != target_thread_id:
-                    win32process.AttachThreadInput(current_thread_id, target_thread_id, True)
-                
-                # Show and set foreground
-                win32gui.ShowWindow(teamsHwnd, win32con.SW_SHOW)
-                win32gui.SetForegroundWindow(teamsHwnd)
-                
-                # Detach the input processing mechanism
-                if current_thread_id != target_thread_id:
-                    win32process.AttachThreadInput(current_thread_id, target_thread_id, False)
-        
+            setForegroundWindow(teamsHwnd)
         time.sleep(0.2)
         
         if isWindowForeground(teamsHwnd) and isWindowMaximized(teamsHwnd):
             return True
         else:
             return False
-            
+
     except Exception as e:
         print(f"Error: {e}")
         return False
@@ -156,7 +177,7 @@ class MouseMover:
     
     def getEndTime(self):
         return (datetime.now().replace(hour=self.endHour, minute=self.end_min, second=0, microsecond=0) + timedelta(minutes = getJitter(self.jitter))).time()
-        
+
     def isActiveTime(self):
         now = datetime.now().time()
         
@@ -249,7 +270,7 @@ class MouseMover:
             except Exception as e:
                 print(f"Error: {e}")
                 time.sleep(1)
-    
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -281,7 +302,7 @@ def isTimeFormatValid(time_str):
 
 def main():
     args = parse_arguments()
-    
+
     if not isTimeFormatValid(args.start):
         print(f"Error: Invalid start time format '{args.start}'. Use HH:MM format (e.g., 08:00)")
         sys.exit(1)
@@ -293,7 +314,7 @@ def main():
     if args.check <= 0:
         print(f"Error: Check interval must be positive, got {args.check}")
         sys.exit(1)
-        
+
     if args.move <= 0:
         print(f"Error: Move interval must be positive, got {args.move}")
         sys.exit(1)
@@ -305,10 +326,9 @@ def main():
         # Create and start mouse mover with command line arguments
         mover = MouseMover(checkInterval=args.check, moveInterval=args.move, startTime=args.start, endTime=args.end, jitter=args.jitter)
         mover.start()
-            
+
     except KeyboardInterrupt:
         print("\nShutting down...")
-        mover.stop()
         sys.exit(0)
 
 if __name__ == "__main__":
